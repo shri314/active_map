@@ -6,24 +6,29 @@
 namespace shri314::util {
 
 template <template <class, class, class...> class underlying_map_t, class key_t, class value_t, class... more_args_t>
-class active_map_adapter {
+class active_map_adapter_t {
 private:
    using entry_t = std::pair<value_t, std::weak_ptr<value_t>>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
 
 public:
-
    template<class... args_t>
-   active_map_adapter(args_t&&... args)
+   constexpr active_map_adapter_t(args_t&&... args)
       : store(std::forward<args_t>(args)...)
    {
    }
 
+   active_map_adapter_t(const active_map_adapter_t&) = delete;
+   active_map_adapter_t(active_map_adapter_t&&) = delete;
+   active_map_adapter_t& operator=(const active_map_adapter_t&) = delete;
+   active_map_adapter_t& operator=(active_map_adapter_t&&) = delete;
+   ~active_map_adapter_t() = default;
+
    struct[[nodiscard]] handle_t {
-      friend class active_map_adapter;
+      friend class active_map_adapter_t;
 
       constexpr explicit operator bool() const noexcept {
-         return x != nullptr;
+         return valid();
       }
 
       constexpr value_t& value() noexcept {
@@ -41,12 +46,18 @@ public:
       ~handle_t() = default;
 
    private:
+      constexpr bool valid() const noexcept {
+         return x != nullptr;
+      }
+
       constexpr explicit handle_t(std::shared_ptr<value_t> x) noexcept
-         : x{x} {
+         : x{x}
+      {
       }
 
       constexpr explicit handle_t() noexcept
-         : x{} {
+         : x{}
+      {
       }
 
    private:
@@ -55,7 +66,8 @@ public:
 
 
 public:
-   handle_t put(key_t key, value_t value) {
+   template <class compatible_key_t, class compatible_value_t>
+   constexpr handle_t put(compatible_key_t&& key, compatible_value_t&& value) {
       auto& e = store[key];
 
       e.first = value;
@@ -128,10 +140,10 @@ private:
 namespace shri314::util {
 
 template <class key_t, class value_t, class... more_args_t>
-using active_map_t = active_map_adapter<std::map, key_t, value_t, more_args_t...>;
+using active_map_t = active_map_adapter_t<std::map, key_t, value_t, more_args_t...>;
 
 template <class key_t, class value_t, class... more_args_t>
-using active_unordered_map_t = active_map_adapter<std::unordered_map, key_t, value_t, more_args_t...>;
+using active_unordered_map_t = active_map_adapter_t<std::unordered_map, key_t, value_t, more_args_t...>;
 
 }
 

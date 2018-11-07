@@ -5,21 +5,26 @@
 namespace shri314::util {
 
 template <template <class, class, class...> class underlying_map_t, class key_t, class value_t, class... more_args_t>
-class active_map_adapter {
+class active_map_adapter_t {
 private:
    using entry_t = std::pair<value_t, size_t>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
 
 public:
-
    template<class... args_t>
-   active_map_adapter(args_t&&... args)
+   constexpr active_map_adapter_t(args_t&&... args)
       : store(std::forward<args_t>(args)...)
    {
    }
 
+   active_map_adapter_t(const active_map_adapter_t&) = delete;
+   active_map_adapter_t(active_map_adapter_t&&) = delete;
+   active_map_adapter_t& operator=(const active_map_adapter_t&) = delete;
+   active_map_adapter_t& operator=(active_map_adapter_t&&) = delete;
+   ~active_map_adapter_t() = default;
+
    struct[[nodiscard]] handle_t {
-      friend class active_map_adapter;
+      friend class active_map_adapter_t;
 
       constexpr explicit operator bool() const noexcept {
          return valid();
@@ -33,7 +38,7 @@ public:
          return entry_iter->second.first;
       }
 
-      ~handle_t() noexcept {
+      inline ~handle_t() noexcept {
          if (valid())
             if (--(entry_iter->second.second) == 0)
                owner.erase(entry_iter);
@@ -62,7 +67,10 @@ public:
          return entry_iter != owner.end();
       }
 
-      constexpr explicit handle_t(map_t& owner, typename map_t::iterator entry_iter) noexcept : owner(owner), entry_iter(entry_iter) {
+      constexpr explicit handle_t(map_t& owner, typename map_t::iterator entry_iter) noexcept
+         : owner(owner)
+         , entry_iter(entry_iter)
+      {
          if (valid())
             ++(entry_iter->second.second);
       }
@@ -87,12 +95,12 @@ public:
    }
 
    template <class compatible_key_t>
-   constexpr handle_t get(compatible_key_t&& key) {
+   constexpr handle_t get(compatible_key_t&& key) noexcept {
       return handle_t{store, store.find(key)};
    }
 
    template <class compatible_key_t>
-   constexpr const handle_t get(compatible_key_t&& key) const {
+   constexpr const handle_t get(compatible_key_t&& key) const noexcept {
       return handle_t{store, store.find(key)};
    }
 
@@ -128,10 +136,10 @@ private:
 namespace shri314::util {
 
 template <class key_t, class value_t, class... more_args_t>
-using active_map_t = active_map_adapter<std::map, key_t, value_t, more_args_t...>;
+using active_map_t = active_map_adapter_t<std::map, key_t, value_t, more_args_t...>;
 
 template <class key_t, class value_t, class... more_args_t>
-using active_unordered_map_t = active_map_adapter<std::unordered_map, key_t, value_t, more_args_t...>;
+using active_unordered_map_t = active_map_adapter_t<std::unordered_map, key_t, value_t, more_args_t...>;
 
 }
 

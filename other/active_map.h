@@ -1,10 +1,12 @@
+#pragma once
+
 #include <utility>
 #include <memory>
 
 namespace shri314::util {
 
 template <template <class, class, class...> class underlying_map_t, class key_t, class value_t, class... more_args_t>
-class active_map_adaptor {
+class active_map_adapter {
 private:
    using entry_t = std::pair<value_t, std::weak_ptr<value_t>>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
@@ -12,13 +14,13 @@ private:
 public:
 
    template<class... args_t>
-   active_map_adaptor(args_t&&... args)
+   active_map_adapter(args_t&&... args)
       : store(std::forward<args_t>(args)...)
    {
    }
 
    struct[[nodiscard]] handle_t {
-      friend class active_map_adaptor;
+      friend class active_map_adapter;
 
       constexpr explicit operator bool() const noexcept {
          return x != nullptr;
@@ -126,10 +128,10 @@ private:
 namespace shri314::util {
 
 template <class key_t, class value_t, class... more_args_t>
-using active_map_t = active_map_adaptor<std::map, key_t, value_t, more_args_t...>;
+using active_map_t = active_map_adapter<std::map, key_t, value_t, more_args_t...>;
 
 template <class key_t, class value_t, class... more_args_t>
-using active_unordered_map_t = active_map_adaptor<std::unordered_map, key_t, value_t, more_args_t...>;
+using active_unordered_map_t = active_map_adapter<std::unordered_map, key_t, value_t, more_args_t...>;
 
 }
 

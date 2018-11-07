@@ -10,46 +10,54 @@ private:
    using entry_t = std::pair<value_t, size_t>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
 
-   template<class value_iter_t>
-   struct[[nodiscard]] handle_impl_t {
+public:
+   struct[[nodiscard]] handle_t {
       friend class active_map_adapter_t;
 
       constexpr explicit operator bool() const noexcept {
          return valid();
       }
 
-      constexpr value_t& value() noexcept {
+      constexpr value_t& operator*() noexcept {
          return entry_iter->second.first;
       }
 
-      constexpr const value_t& value() const noexcept {
+      constexpr const value_t& operator*() const noexcept {
          return entry_iter->second.first;
       }
 
-      constexpr explicit handle_impl_t() noexcept
+      constexpr value_t* operator->() noexcept {
+         return &entry_iter->second.first;
+      }
+
+      constexpr const value_t* operator->() const noexcept {
+         return &entry_iter->second.first;
+      }
+
+      constexpr explicit handle_t() noexcept
          : owner{}
       {
       }
 
-      inline ~handle_impl_t() noexcept {
+      ~handle_t() noexcept {
          this->release();
       }
 
-      constexpr handle_impl_t(const handle_impl_t& rhs) noexcept
+      constexpr handle_t(const handle_t& rhs) noexcept
          : owner{rhs.owner}
          , entry_iter{rhs.entry_iter}
       {
          this->acquire();
       }
 
-      constexpr handle_impl_t(handle_impl_t&& rhs) noexcept
+      constexpr handle_t(handle_t&& rhs) noexcept
          : owner(rhs.owner)
          , entry_iter(std::move(rhs.entry_iter))
       {
          rhs.owner = nullptr;
       }
 
-      constexpr handle_impl_t& operator=(const handle_impl_t& rhs) noexcept {
+      constexpr handle_t& operator=(const handle_t& rhs) noexcept {
 
          if(&rhs != this) {
             this->release();
@@ -63,7 +71,7 @@ private:
          return *this;
       }
 
-      constexpr handle_impl_t& operator=(handle_impl_t&& rhs) noexcept {
+      constexpr handle_t& operator=(handle_t&& rhs) noexcept {
          this->release();
 
          owner = rhs.owner;
@@ -90,7 +98,7 @@ private:
                owner->erase(entry_iter);
       }
 
-      constexpr explicit handle_impl_t(map_t* owner, value_iter_t entry_iter) noexcept
+      constexpr explicit handle_t(map_t* owner, typename map_t::iterator entry_iter) noexcept
          : owner(owner)
          , entry_iter(entry_iter)
       {
@@ -99,12 +107,67 @@ private:
 
    private:
       map_t* owner;
-      value_iter_t entry_iter;
+      typename map_t::iterator entry_iter;
    };
 
-public:
-   using handle_t = handle_impl_t<typename map_t::iterator>;
-   using const_handle_t = handle_impl_t<typename map_t::const_iterator>;
+   struct[[nodiscard]] const_handle_t {
+      friend class active_map_adapter_t;
+
+      constexpr explicit operator bool() const noexcept {
+         return valid();
+      }
+
+      constexpr const value_t& operator*() noexcept {
+         return entry_iter->second.first;
+      }
+
+      constexpr const value_t& operator*() const noexcept {
+         return entry_iter->second.first;
+      }
+
+      constexpr const value_t* operator->() noexcept {
+         return &entry_iter->second.first;
+      }
+
+      constexpr const value_t* operator->() const noexcept {
+         return &entry_iter->second.first;
+      }
+
+      constexpr explicit const_handle_t() noexcept
+         : owner{}
+      {
+      }
+
+      ~const_handle_t() = default;
+
+      const_handle_t(const const_handle_t& rhs) = delete;
+
+      constexpr const_handle_t(const_handle_t&& rhs) noexcept
+         : owner(rhs.owner)
+         , entry_iter(std::move(rhs.entry_iter))
+      {
+         rhs.owner = nullptr;
+      }
+
+      const_handle_t& operator=(const const_handle_t& rhs) = delete;
+
+      const_handle_t& operator=(const_handle_t&& rhs) = delete;
+
+   private:
+      constexpr bool valid() const noexcept {
+         return owner != nullptr && entry_iter != owner->end();
+      }
+
+      constexpr explicit const_handle_t(const map_t* owner, typename map_t::const_iterator entry_iter) noexcept
+         : owner(owner)
+         , entry_iter(entry_iter)
+      {
+      }
+
+   private:
+      const map_t* owner;
+      typename map_t::const_iterator entry_iter;
+   };
 
    template<class... args_t>
    constexpr active_map_adapter_t(args_t&&... args)

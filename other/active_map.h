@@ -11,54 +11,110 @@ private:
    using entry_t = std::pair<value_t, std::weak_ptr<value_t>>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
 
-   template<class value_ptr_t>
-   struct[[nodiscard]] handle_impl_t {
+public:
+   struct[[nodiscard]] handle_t {
       friend class active_map_adapter_t;
 
       constexpr explicit operator bool() const noexcept {
          return valid();
       }
 
-      constexpr value_t& value() noexcept {
+      constexpr value_t& operator*() noexcept {
          return *x;
       }
 
-      constexpr const value_t& value() const noexcept {
+      constexpr const value_t& operator*() const noexcept {
          return *x;
       }
 
-      constexpr explicit handle_impl_t() noexcept
+      constexpr value_t* operator->() noexcept {
+         return &*x;
+      }
+
+      constexpr const value_t* operator->() const noexcept {
+         return &*x;
+      }
+
+      constexpr explicit handle_t() noexcept
          : x{}
       {
       }
 
-      inline ~handle_impl_t() = default;
+      ~handle_t() = default;
 
-      constexpr handle_impl_t(const handle_impl_t& rhs) noexcept = default;
+      constexpr handle_t(const handle_t& rhs) noexcept = default;
 
-      constexpr handle_impl_t(handle_impl_t&& rhs) noexcept = default;
+      constexpr handle_t(handle_t&& rhs) noexcept = default;
 
-      constexpr handle_impl_t& operator=(const handle_impl_t& rhs) noexcept = default;
+      constexpr handle_t& operator=(const handle_t& rhs) noexcept = default;
 
-      constexpr handle_impl_t& operator=(handle_impl_t&& rhs) noexcept = default;
+      constexpr handle_t& operator=(handle_t&& rhs) noexcept = default;
 
    private:
       constexpr bool valid() const noexcept {
          return x != nullptr;
       }
 
-      constexpr explicit handle_impl_t(value_ptr_t x) noexcept
+      constexpr explicit handle_t(std::shared_ptr<value_t> x) noexcept
          : x{x}
       {
       }
 
    private:
-      value_ptr_t x;
+      std::shared_ptr<value_t> x;
    };
 
-public:
-   using handle_t = handle_impl_t<std::shared_ptr<value_t>>;
-   using const_handle_t = handle_impl_t<std::shared_ptr<const value_t>>;
+   struct[[nodiscard]] const_handle_t {
+      friend class active_map_adapter_t;
+
+      constexpr explicit operator bool() const noexcept {
+         return valid();
+      }
+
+      constexpr const value_t& operator*() noexcept {
+         return *x;
+      }
+
+      constexpr const value_t& operator*() const noexcept {
+         return *x;
+      }
+
+      constexpr const value_t* operator->() noexcept {
+         return &*x;
+      }
+
+      constexpr const value_t* operator->() const noexcept {
+         return &*x;
+      }
+
+      constexpr explicit const_handle_t() noexcept
+         : x{}
+      {
+      }
+
+      ~const_handle_t() = default;
+
+      const_handle_t(const const_handle_t& rhs) = delete;
+
+      constexpr const_handle_t(const_handle_t& rhs) = default;
+
+      const_handle_t& operator=(const const_handle_t& rhs) = delete;
+
+      const_handle_t& operator=(const_handle_t&& rhs) = delete;
+
+   private:
+      constexpr bool valid() const noexcept {
+         return x != nullptr;
+      }
+
+      constexpr explicit const_handle_t(std::shared_ptr<const value_t> x) noexcept
+         : x{x}
+      {
+      }
+
+   private:
+      std::shared_ptr<const value_t> x;
+   };
 
    template<class... args_t>
    constexpr active_map_adapter_t(args_t&&... args)

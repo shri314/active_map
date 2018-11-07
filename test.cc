@@ -27,12 +27,12 @@ int main() {
 
       assert( test_object.size() == 1 );
       assert( h2 );
-      assert( h2.value() == 101 );
+      assert( *h2 == 101 );
 
       {
          auto ha = test_object.get(10);
          assert( ha );
-         assert( ha.value() == 101 );
+         assert( *ha == 101 );
       }
 
       {

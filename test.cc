@@ -1,6 +1,5 @@
 #include "active_map.h"
 
-#include <memory>
 #include <cassert>
 
 using namespace shri314::util;
@@ -11,7 +10,7 @@ int main() {
    AM test_object;
 
    {
-      std::unique_ptr<AM::handle_t> h2;
+      AM::handle_t h2;
 
       {
          assert( test_object.size() == 0 );
@@ -23,12 +22,12 @@ int main() {
 
          assert( test_object.size() == 1 );
 
-         h2.reset(new AM::handle_t(h1));
+         h2 = h1;
       }
 
       assert( test_object.size() == 1 );
       assert( h2 );
-      assert( h2->value() == 101 );
+      assert( h2.value() == 101 );
 
       {
          auto ha = test_object.get(10);

@@ -10,20 +10,8 @@ private:
    using entry_t = std::pair<value_t, size_t>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
 
-public:
-   template<class... args_t>
-   constexpr active_map_adapter_t(args_t&&... args)
-      : store(std::forward<args_t>(args)...)
-   {
-   }
-
-   active_map_adapter_t(const active_map_adapter_t&) = delete;
-   active_map_adapter_t(active_map_adapter_t&&) = delete;
-   active_map_adapter_t& operator=(const active_map_adapter_t&) = delete;
-   active_map_adapter_t& operator=(active_map_adapter_t&&) = delete;
-   ~active_map_adapter_t() = default;
-
-   struct[[nodiscard]] handle_t {
+   template<class value_iter_t>
+   struct[[nodiscard]] handle_impl_t {
       friend class active_map_adapter_t;
 
       constexpr explicit operator bool() const noexcept {
@@ -38,70 +26,118 @@ public:
          return entry_iter->second.first;
       }
 
-      inline ~handle_t() noexcept {
-         if (valid())
-            if (--(entry_iter->second.second) == 0)
-               owner.erase(entry_iter);
+      constexpr explicit handle_impl_t() noexcept
+         : owner{}
+      {
       }
 
-      constexpr handle_t(const handle_t& rhs) noexcept
+      inline ~handle_impl_t() noexcept {
+         this->release();
+      }
+
+      constexpr handle_impl_t(const handle_impl_t& rhs) noexcept
          : owner{rhs.owner}
          , entry_iter{rhs.entry_iter}
       {
-         if (valid())
-            ++(entry_iter->second.second);
+         this->acquire();
       }
 
-      constexpr handle_t(handle_t&& rhs) noexcept
+      constexpr handle_impl_t(handle_impl_t&& rhs) noexcept
          : owner(rhs.owner)
          , entry_iter(std::move(rhs.entry_iter))
       {
-         rhs.entry_iter = rhs.owner.end();
+         rhs.owner = nullptr;
       }
 
-      void operator=(handle_t&&) = delete;
-      void operator=(handle_t&) = delete;
+      constexpr handle_impl_t& operator=(const handle_impl_t& rhs) noexcept {
+
+         if(&rhs != this) {
+            this->release();
+
+            owner = rhs.owner;
+            entry_iter = rhs.entry_iter;
+
+            this->acquire();
+         }
+
+         return *this;
+      }
+
+      constexpr handle_impl_t& operator=(handle_impl_t&& rhs) noexcept {
+         this->release();
+
+         owner = rhs.owner;
+         entry_iter = rhs.entry_iter;
+
+         rhs.owner = nullptr;
+
+         return *this;
+      }
 
    private:
       constexpr bool valid() const noexcept {
-         return entry_iter != owner.end();
+         return owner != nullptr && entry_iter != owner->end();
       }
 
-      constexpr explicit handle_t(map_t& owner, typename map_t::iterator entry_iter) noexcept
-         : owner(owner)
-         , entry_iter(entry_iter)
-      {
+      constexpr void acquire() noexcept {
          if (valid())
             ++(entry_iter->second.second);
       }
 
+      constexpr void release() noexcept {
+         if (valid())
+            if (--(entry_iter->second.second) == 0)
+               owner->erase(entry_iter);
+      }
+
+      constexpr explicit handle_impl_t(map_t* owner, value_iter_t entry_iter) noexcept
+         : owner(owner)
+         , entry_iter(entry_iter)
+      {
+         this->acquire();
+      }
+
    private:
-      map_t& owner;
-      typename map_t::iterator entry_iter;
+      map_t* owner;
+      value_iter_t entry_iter;
    };
 
-
 public:
+   using handle_t = handle_impl_t<typename map_t::iterator>;
+   using const_handle_t = handle_impl_t<typename map_t::const_iterator>;
+
+   template<class... args_t>
+   constexpr active_map_adapter_t(args_t&&... args)
+      : store(std::forward<args_t>(args)...)
+   {
+   }
+
+   active_map_adapter_t(const active_map_adapter_t&) = delete;
+   active_map_adapter_t(active_map_adapter_t&&) = delete;
+   active_map_adapter_t& operator=(const active_map_adapter_t&) = delete;
+   active_map_adapter_t& operator=(active_map_adapter_t&&) = delete;
+   ~active_map_adapter_t() = default;
+
    template <class compatible_key_t, class compatible_value_t>
    constexpr handle_t put(compatible_key_t&& key, compatible_value_t&& value) {
       auto i = store.find(key);
       if (i != store.end()) {
          i->second.first = std::forward<compatible_value_t>(value);
       } else {
-         i = store.emplace(std::forward<compatible_key_t>(key), entry_t{std::forward<compatible_value_t>(value), 0}).first;
+         i = store.emplace( std::forward<compatible_key_t>(key), entry_t{std::forward<compatible_value_t>(value), {}} ).first;
       }
 
-      return handle_t{store, i};
+      return handle_t{&store, i};
    }
 
    template <class compatible_key_t>
-   constexpr handle_t get(compatible_key_t&& key) noexcept {
-      return handle_t{store, store.find(key)};
+   constexpr handle_t get(compatible_key_t&& key) {
+      return handle_t{&store, store.find(key)};
    }
 
    template <class compatible_key_t>
-   constexpr const handle_t get(compatible_key_t&& key) const noexcept {
-      return handle_t{store, store.find(key)};
+   constexpr const_handle_t get(compatible_key_t&& key) const {
+      return const_handle_t{&store, store.find(key)};
    }
 
    template <class F>

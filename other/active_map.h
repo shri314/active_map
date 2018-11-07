@@ -11,20 +11,8 @@ private:
    using entry_t = std::pair<value_t, std::weak_ptr<value_t>>;
    using map_t = underlying_map_t<key_t, entry_t, more_args_t...>;
 
-public:
-   template<class... args_t>
-   constexpr active_map_adapter_t(args_t&&... args)
-      : store(std::forward<args_t>(args)...)
-   {
-   }
-
-   active_map_adapter_t(const active_map_adapter_t&) = delete;
-   active_map_adapter_t(active_map_adapter_t&&) = delete;
-   active_map_adapter_t& operator=(const active_map_adapter_t&) = delete;
-   active_map_adapter_t& operator=(active_map_adapter_t&&) = delete;
-   ~active_map_adapter_t() = default;
-
-   struct[[nodiscard]] handle_t {
+   template<class value_ptr_t>
+   struct[[nodiscard]] handle_impl_t {
       friend class active_map_adapter_t;
 
       constexpr explicit operator bool() const noexcept {
@@ -39,44 +27,65 @@ public:
          return *x;
       }
 
-      handle_t(const handle_t&) = default;
-      handle_t(handle_t&&) = default;
-      handle_t& operator=(const handle_t&) = default;
-      handle_t& operator=(handle_t&&) = default;
-      ~handle_t() = default;
+      constexpr explicit handle_impl_t() noexcept
+         : x{}
+      {
+      }
+
+      inline ~handle_impl_t() = default;
+
+      constexpr handle_impl_t(const handle_impl_t& rhs) noexcept = default;
+
+      constexpr handle_impl_t(handle_impl_t&& rhs) noexcept = default;
+
+      constexpr handle_impl_t& operator=(const handle_impl_t& rhs) noexcept = default;
+
+      constexpr handle_impl_t& operator=(handle_impl_t&& rhs) noexcept = default;
 
    private:
       constexpr bool valid() const noexcept {
          return x != nullptr;
       }
 
-      constexpr explicit handle_t(std::shared_ptr<value_t> x) noexcept
+      constexpr explicit handle_impl_t(value_ptr_t x) noexcept
          : x{x}
       {
       }
 
-      constexpr explicit handle_t() noexcept
-         : x{}
-      {
-      }
-
    private:
-      std::shared_ptr<value_t> x;
+      value_ptr_t x;
    };
 
-
 public:
+   using handle_t = handle_impl_t<std::shared_ptr<value_t>>;
+   using const_handle_t = handle_impl_t<std::shared_ptr<const value_t>>;
+
+   template<class... args_t>
+   constexpr active_map_adapter_t(args_t&&... args)
+      : store(std::forward<args_t>(args)...)
+   {
+   }
+
+   active_map_adapter_t(const active_map_adapter_t&) = delete;
+   active_map_adapter_t(active_map_adapter_t&&) = delete;
+   active_map_adapter_t& operator=(const active_map_adapter_t&) = delete;
+   active_map_adapter_t& operator=(active_map_adapter_t&&) = delete;
+   ~active_map_adapter_t() = default;
+
    template <class compatible_key_t, class compatible_value_t>
    constexpr handle_t put(compatible_key_t&& key, compatible_value_t&& value) {
-      auto& e = store[key];
+      auto i = store.find(key);
+      if (i != store.end()) {
+         i->second.first = std::forward<compatible_value_t>(value);
+      } else {
+         i = store.emplace( std::forward<compatible_key_t>(key), entry_t{std::forward<compatible_value_t>(value), {}} ).first;
+      }
 
-      e.first = value;
-
-      auto handle = e.second.lock();
+      auto handle = i->second.second.lock();
 
       if (!handle) {
-         e.second = handle = std::shared_ptr<value_t>(
-               &e.first,
+         i->second.second = handle = std::shared_ptr<value_t>(
+               &i->second.first,
                [ pstore = &store, key ](auto) {
                   pstore->erase(key);
                }
@@ -90,22 +99,20 @@ public:
    constexpr handle_t get(compatible_key_t&& key) {
       auto i = store.find(key);
       if (i != store.end()) {
-         auto handle = i->second.second.lock();
-         return handle_t{handle};
+         return handle_t{i->second.second.lock()};
+      } else {
+         return handle_t{};
       }
-
-      return handle_t{};
    }
 
    template <class compatible_key_t>
-   constexpr const handle_t get(compatible_key_t&& key) const {
+   constexpr const_handle_t get(compatible_key_t&& key) const {
       auto i = store.find(key);
       if (i != store.end()) {
-         auto handle = i->second.second.lock();
-         return handle_t{handle};
+         return const_handle_t{i->second.second.lock()};
+      } else {
+         return const_handle_t{};
       }
-
-      return handle_t{};
    }
 
    template <class F>
